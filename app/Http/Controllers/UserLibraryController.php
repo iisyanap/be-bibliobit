@@ -30,29 +30,28 @@ class UserLibraryController extends Controller
     }
 
     public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'book_id' => 'required|exists:books,id',
-            'status' => 'required|in:PLAN_TO_READ,READING,FINISH',
-            'last_page_read' => 'nullable|integer',
-            'rating' => 'nullable|numeric|min:0|max:5',
-        ]);
+{
+    $validated = $request->validate([
+        'book_id' => 'required|exists:books,id',
+        'status' => 'required|in:PLAN_TO_READ,READING,FINISH',
+        'last_page_read' => 'nullable|integer',
+        'rating' => 'nullable|numeric|min:0|max:5',
+    ]);
 
-        if ($validated['status'] !== 'FINISH' && isset($validated['rating'])) {
-            return response()->json(['error' => 'Rating only allowed for FINISH status'], 422);
-        }
-
-        $userLibrary = UserLibrary::create([
-            'user_id' => $request->user->uid,
-            'book_id' => $validated['book_id'],
-            'status' => $validated['status'],
-            'last_page_read' => $validated['last_page_read'] ?? null,
-            'rating' => $validated['rating'] ?? null,
-            'updated_at' => now(),
-        ]);
-
-        return response()->json($userLibrary->load('book'), 201);
+    if ($validated['status'] !== 'FINISH' && isset($validated['rating'])) {
+        return response()->json(['error' => 'Rating only allowed for FINISH status'], 422);
     }
+
+    $userLibrary = UserLibrary::create([
+        'user_id' => $request->user->uid,
+        'book_id' => $validated['book_id'],
+        'status' => $validated['status'],
+        'last_page_read' => $validated['last_page_read'] ?? null,
+        'rating' => $validated['rating'] ?? null,
+    ]);
+
+    return response()->json($userLibrary->load('book'), 201);
+}
 
     public function show(UserLibrary $userLibrary)
     {

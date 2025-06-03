@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Book;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 class BookController extends Controller
 {
@@ -57,5 +58,33 @@ class BookController extends Controller
     {
         $book->delete();
         return response()->json(null, 204);
+    }
+
+    public function sync(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            '*.id' => 'required|integer',
+            '*.title' => 'required|string',
+            '*.author' => 'required|string',
+            '*.publisher' => 'required|string',
+            '*.genre' => 'nullable|string',
+            '*.pages' => 'nullable|integer',
+            '*.year' => 'nullable|integer',
+            '*.isbn' => 'nullable|string',
+            '*.description' => 'nullable|string',
+            '*.cover_photo_path' => 'nullable|string'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $syncedBooks = [];
+        foreach ($request->all() as $data) {
+            $book = Book::updateOrCreate(['id' => $data['id']], $data);
+            $syncedBooks[] = $book;
+        }
+
+        return response()->json(['data' => $syncedBooks], 200);
     }
 }

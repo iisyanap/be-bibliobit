@@ -1,7 +1,6 @@
 <?php
 
 namespace App\Models;
-
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -18,6 +17,8 @@ class UserLibrary extends Model
         'rating' => 'float',
     ];
 
+    public $timestamps = true;
+
     public function user()
     {
         return $this->belongsTo(LocalUser::class, 'user_id', 'uid');
@@ -27,4 +28,5 @@ class UserLibrary extends Model
     {
         return $this->belongsTo(Book::class, 'book_id');
     }
+
 }
