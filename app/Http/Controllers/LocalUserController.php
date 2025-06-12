@@ -2,64 +2,35 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\LocalUser;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class LocalUserController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Mengambil profil pengguna yang sedang login.
      */
-    public function index()
+    public function getProfile(Request $request)
     {
-        //
+        // $request->user ditambahkan oleh middleware FirebaseAuth kita
+        return response()->json($request->user);
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Memperbarui profil pengguna yang sedang login.
      */
-    public function create()
+    public function updateProfile(Request $request)
     {
-        //
-    }
+        $user = $request->user;
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
+        $validated = $request->validate([
+            'name' => 'sometimes|string|max:255',
+            'username' => 'sometimes|string|max:255|unique:local_users,username,' . $user->uid . ',uid',
+            'profile_image' => 'nullable|string'
+        ]);
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(LocalUser $localUser)
-    {
-        //
-    }
+        $user->update($validated);
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(LocalUser $localUser)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, LocalUser $localUser)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(LocalUser $localUser)
-    {
-        //
+        return response()->json($user);
     }
 }

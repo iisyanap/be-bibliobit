@@ -8,58 +8,55 @@ use Illuminate\Http\Request;
 class ReadingProgressController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Menampilkan daftar data progres baca.
+     * Bisa difilter berdasarkan user_library_id jika parameter itu diberikan.
      */
-    public function index()
+    public function index(Request $request)
     {
-        //
+        $user = $request->user;
+        $userLibraryId = $request->query('user_library_id');
+
+        // Ambil semua ID library yang SAH milik pengguna yang sedang login
+        $userLibraryIds = $user->userLibraries()->pluck('id');
+
+        // Mulai query dasar: ambil semua progress yang terkait dengan library milik user
+        $query = ReadingProgress::whereIn('user_library_id', $userLibraryIds);
+
+        // Jika ada parameter user_library_id di URL, tambahkan filter
+        if ($userLibraryId) {
+            // Filter lebih lanjut untuk hanya mengambil progres dari ID spesifik yang diminta
+            $query->where('user_library_id', $userLibraryId);
+        }
+
+        // Ambil data dan urutkan berdasarkan tanggal terbaru
+        $progress = $query->orderBy('recorded_at', 'desc')->get();
+
+        return response()->json($progress);
     }
 
     /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
+     * Menyimpan data progres baca baru.
      */
     public function store(Request $request)
     {
-        //
-    }
+        $user = $request->user;
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(ReadingProgress $readingProgress)
-    {
-        //
-    }
+        $validated = $request->validate([
+            'user_library_id' => 'required|integer',
+            'page_read' => 'required|integer',
+            'recorded_at' => 'required|date',
+        ]);
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(ReadingProgress $readingProgress)
-    {
-        //
-    }
+        // Validasi keamanan: pastikan user_library_id ini benar-benar milik pengguna yang sedang login
+        $userLibrary = $user->userLibraries()->find($validated['user_library_id']);
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, ReadingProgress $readingProgress)
-    {
-        //
-    }
+        if (!$userLibrary) {
+            // Jika tidak, tolak permintaan untuk mencegah pengguna menyimpan progres di buku orang lain
+            return response()->json(['error' => 'Unauthorized or invalid library entry.'], 403);
+        }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(ReadingProgress $readingProgress)
-    {
-        //
+        $readingProgress = ReadingProgress::create($validated);
+
+        return response()->json($readingProgress, 201);
     }
 }
