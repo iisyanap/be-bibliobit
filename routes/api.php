@@ -1,10 +1,12 @@
 <?php
 
-use App\Http\Controllers\BookController;
-use App\Http\Controllers\UserLibraryController;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\ReadingProgressController;
 use App\Models\LocalUser;
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\BookController;
+use App\Http\Controllers\NoteController;
+use App\Http\Controllers\StatisticController;
+use App\Http\Controllers\UserLibraryController;
+use App\Http\Controllers\ReadingProgressController;
 
 Route::middleware('firebase')->group(function () {
     // Endpoint untuk Books
@@ -30,4 +32,15 @@ Route::middleware('firebase')->group(function () {
 
     Route::get('/reading-progress', [ReadingProgressController::class, 'index']);
     Route::post('/reading-progress', [ReadingProgressController::class, 'store']);
+
+    // Endpoint notes
+    Route::get('/user-library/{userLibrary}/notes', [NoteController::class, 'index']);
+    Route::post('/user-library/{userLibrary}/notes', [NoteController::class, 'store']);
+    // Route::get('/notes/{note}', [NoteController::class, 'show']);
+    Route::post('/notes/{note}', [NoteController::class, 'update']);
+    Route::delete('/notes/{note}', [NoteController::class, 'destroy']);
+
+    // Endpoint Statistic
+    Route::get('/statistics', [StatisticController::class, 'index']);
+
 });

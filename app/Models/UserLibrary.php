@@ -29,4 +29,8 @@ class UserLibrary extends Model
         return $this->belongsTo(Book::class, 'book_id');
     }
 
+    public function notes()
+    {
+        return $this->hasMany(Note::class, 'user_library_id');
+    }
 }
