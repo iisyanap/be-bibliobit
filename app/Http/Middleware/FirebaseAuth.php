@@ -37,6 +37,8 @@ class FirebaseAuth
                 return response()->json(['error' => 'Unauthorized: No token provided'], 401);
             }
 
+            Log::info("Token Firebase diterima dari client: {$token}");
+            
             // Verifikasi token
             $verifiedIdToken = $this->auth->verifyIdToken($token);
 

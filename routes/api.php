@@ -4,6 +4,7 @@ use App\Http\Controllers\BookController;
 use App\Http\Controllers\UserLibraryController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ReadingProgressController;
+use App\Models\LocalUser;
 
 Route::middleware('firebase')->group(function () {
     // Endpoint untuk Books
@@ -25,6 +26,7 @@ Route::middleware('firebase')->group(function () {
     // Endpoint untuk Profile
     Route::get('/profile', [App\Http\Controllers\LocalUserController::class, 'getProfile']);
     Route::put('/profile', [App\Http\Controllers\LocalUserController::class, 'updateProfile']);
+    // Route::post('/upload-image', [LocalUser::class, 'upload']);
 
     Route::get('/reading-progress', [ReadingProgressController::class, 'index']);
     Route::post('/reading-progress', [ReadingProgressController::class, 'store']);

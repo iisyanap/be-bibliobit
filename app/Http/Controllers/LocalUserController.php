@@ -33,4 +33,9 @@ class LocalUserController extends Controller
 
         return response()->json($user);
     }
+
+    public function uploadImage()
+    {
+        
+    }
 }
