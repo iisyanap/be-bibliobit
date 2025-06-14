@@ -13,6 +13,24 @@ class BookController extends Controller
         return response()->json(Book::all());
     }
 
+    // public function index(Request $request)
+    // {
+    // $query = $request->query('q');
+
+    // if ($query) {
+    //     $books = Book::where('title', 'like', "%{$query}%")
+    //                  ->orWhere('author', 'like', "%{$query}%")
+    //                  ->take(5) // Batasi hasil pencarian lokal
+    //                  ->get();
+    // } else {
+    //     // Jika tidak mencari, jangan kembalikan semua buku. Itu tidak efisien.
+    //     // Kembalikan array kosong atau buku terbaru saja.
+    //     $books = Book::latest()->take(10)->get();
+    // }
+
+    //     return response()->json($books);
+    // }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -44,14 +62,23 @@ class BookController extends Controller
             'genre' => 'nullable|string',
             'year' => 'nullable|integer',
             'description' => 'nullable|string',
-            'isbn' => 'nullable|string',
+            'isbn' => 'nullable|string|unique:books,isbn,' . ($request->id ?? 'NULL') . ',id', // ISBN harus unik
             'pages' => 'sometimes|integer',
             'publisher' => 'nullable|string',
             'cover_photo_path' => 'nullable|string',
         ]);
 
+        if (!empty($validated['isbn'])) {
+        $book = Book::updateOrCreate(
+            ['isbn' => $validated['isbn']], // Kunci untuk mencari
+            $validated                      // Data untuk di-update atau di-create
+        );
+        } else {
+            $book = Book::create($validated);
+        }
+
         $book->update($validated);
-        return response()->json($book);
+        return response()->json($book, $book->wasRecentlyCreated ? 201 : 200);
     }
 
     public function destroy(Book $book)

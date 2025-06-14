@@ -14,7 +14,7 @@ class FirebaseAuth
 
     public function __construct()
     {
-        $credentialsPath = env('FIREBASE_CREDENTIALS', storage_path('firebase-service-account.json'));
+        $credentialsPath = env('FIREBASE_CREDENTIALS', storage_path('bibliobit-service-account.json'));
 
         if (!$credentialsPath || !file_exists($credentialsPath)) {
             throw new \Exception("Firebase credentials not found at: {$credentialsPath}");
@@ -38,7 +38,7 @@ class FirebaseAuth
             }
 
             Log::info("Token Firebase diterima dari client: {$token}");
-            
+
             // Verifikasi token
             $verifiedIdToken = $this->auth->verifyIdToken($token);
 

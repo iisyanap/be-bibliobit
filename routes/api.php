@@ -5,8 +5,13 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\NoteController;
 use App\Http\Controllers\StatisticController;
+use App\Http\Controllers\GoogleBooksController;
 use App\Http\Controllers\UserLibraryController;
 use App\Http\Controllers\ReadingProgressController;
+
+// RUTE PUBLIK - Tidak perlu login
+Route::get('/google-books/search', [GoogleBooksController::class, 'search']);
+Route::get('/google-books/isbn/{isbn}', [GoogleBooksController::class, 'findByIsbn']);
 
 Route::middleware('firebase')->group(function () {
     // Endpoint untuk Books
@@ -42,5 +47,9 @@ Route::middleware('firebase')->group(function () {
 
     // Endpoint Statistic
     Route::get('/statistics', [StatisticController::class, 'index']);
+
+    // // Endpoint baru untuk Google Books API
+    // Route::get('/google-books/search', [GoogleBooksController::class, 'search']);
+    // Route::get('/google-books/isbn/{isbn}', [GoogleBooksController::class, 'findByIsbn']);
 
 });
