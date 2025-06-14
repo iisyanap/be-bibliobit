@@ -10,6 +10,7 @@ class LocalUser extends Model
 {
     use HasFactory;
 
+    protected $table = 'local_users';
     protected $primaryKey = 'uid';
     public $incrementing = false;
     protected $keyType = 'string';

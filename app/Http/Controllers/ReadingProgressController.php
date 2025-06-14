@@ -42,7 +42,7 @@ class ReadingProgressController extends Controller
         $user = $request->user;
 
         $validated = $request->validate([
-            'user_library_id' => 'required|integer',
+            'user_library_id' => 'required|integer|exists:user_library,id',
             'page_read' => 'required|integer',
             'recorded_at' => 'required|date',
         ]);
@@ -51,11 +51,16 @@ class ReadingProgressController extends Controller
         $userLibrary = $user->userLibraries()->find($validated['user_library_id']);
 
         if (!$userLibrary) {
-            // Jika tidak, tolak permintaan untuk mencegah pengguna menyimpan progres di buku orang lain
             return response()->json(['error' => 'Unauthorized or invalid library entry.'], 403);
         }
 
-        $readingProgress = ReadingProgress::create($validated);
+        // Buat instance ReadingProgress dengan data yang divalidasi
+        $readingProgress = new ReadingProgress();
+        $readingProgress->user_library_id = $validated['user_library_id'];
+        $readingProgress->page_read = $validated['page_read'];
+        $readingProgress->recorded_at = $validated['recorded_at'];
+        $readingProgress->user_id = $userLibrary->user_id; // Pastikan user_id diisi dari userLibrary
+        $readingProgress->save();
 
         return response()->json($readingProgress, 201);
     }
