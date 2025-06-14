@@ -8,7 +8,7 @@ class UserLibrary extends Model
 {
     use HasFactory;
 
-    protected $table = 'user_library'; // Tambahkan ini untuk menyesuaikan dengan nama tabel migrasi
+    protected $table = 'user_library';
 
     protected $fillable = ['user_id', 'book_id', 'status', 'last_page_read', 'updated_at', 'rating'];
 

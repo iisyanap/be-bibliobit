@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class ReadingProgress extends Model
 {
     use HasFactory;
+    protected $table = 'reading_progress';
 
     protected $fillable = ['user_library_id', 'page_read', 'recorded_at'];
 
