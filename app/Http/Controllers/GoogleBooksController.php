@@ -128,9 +128,7 @@ class GoogleBooksController extends Controller
     private function formatGoogleBookData($item)
     {
         $info = $item['volumeInfo'] ?? [];
-
-        $isbn13 = null;
-        $isbn10 = null;
+        $isbn13 = null; $isbn10 = null;
         if (!empty($info['industryIdentifiers'])) {
             foreach ($info['industryIdentifiers'] as $identifier) {
                 if ($identifier['type'] === 'ISBN_13') $isbn13 = $identifier['identifier'];
@@ -139,6 +137,10 @@ class GoogleBooksController extends Controller
         }
 
         return [
+            // --- DIPERBAIKI: Tambahkan 'google_id' ---
+            // Ini adalah ID unik dari Google yang akan kita gunakan sebagai kunci.
+            'google_id' => $item['id'] ?? null,
+
             'title' => $info['title'] ?? 'No Title Available',
             'author' => implode(', ', $info['authors'] ?? ['Unknown Author']),
             'publisher' => $info['publisher'] ?? null,
