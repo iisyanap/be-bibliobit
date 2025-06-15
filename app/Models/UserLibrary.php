@@ -9,8 +9,16 @@ class UserLibrary extends Model
     use HasFactory;
 
     protected $table = 'user_library';
+    protected $keyType = 'integer';
 
-    protected $fillable = ['user_id', 'book_id', 'status', 'last_page_read', 'updated_at', 'rating'];
+    protected $fillable = [
+        'user_id', 
+        'book_id', 
+        'status', 
+        'last_page_read', 
+        'updated_at', 
+        'rating'
+    ];
 
     protected $casts = [
         'updated_at' => 'datetime',
@@ -32,5 +40,10 @@ class UserLibrary extends Model
     public function notes()
     {
         return $this->hasMany(Note::class, 'user_library_id');
+    }
+
+    public function readingProgresses()
+    {
+        return $this->hasMany(ReadingProgress::class, 'user_library_id');
     }
 }

@@ -10,7 +10,12 @@ class ReadingProgress extends Model
     use HasFactory;
     protected $table = 'reading_progress';
 
-    protected $fillable = ['user_library_id', 'page_read', 'recorded_at'];
+    protected $fillable = [
+        'user_library_id',
+        'page_read',
+        'recorded_at',
+        'user_id',
+    ];
 
     protected $casts = [
         'recorded_at' => 'datetime',

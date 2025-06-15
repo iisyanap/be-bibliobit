@@ -70,6 +70,8 @@ class UserLibraryController extends Controller
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
+        Log::info('Data untuk update UserLibrary:', $request->all());
+
         $validated = $request->validate([
             'status' => 'sometimes|in:PLAN_TO_READ,READING,FINISH',
             'last_page_read' => 'nullable|integer',
@@ -117,37 +119,45 @@ class UserLibraryController extends Controller
     }
 
     public function updateOrCreate(Request $request)
-{
-    Log::info("Received request: " . $request->getContent());
-    $validated = $request->validate([
-        'book_id' => 'required|exists:books,id',
-        'status' => 'required|in:PLAN_TO_READ,READING,FINISH',
-        'last_page_read' => 'nullable|integer',
-        'rating' => 'nullable|numeric|min:0|max:5',
-    ]);
+    {
+        // Langkah 1: Catat semua data mentah yang datang dari klien
+        Log::info('Mencoba updateOrCreate. Data mentah:', $request->all());
 
-    if ($validated['status'] !== 'FINISH' && isset($validated['rating'])) {
-        return response()->json(['error' => 'Rating only allowed for FINISH status'], 422);
+        $validated = $request->validate([
+            'book_id' => 'required|exists:books,id',
+            'status' => 'required|in:PLAN_TO_READ,READING,FINISH',
+            'last_page_read' => 'nullable|integer',
+            'rating' => 'nullable|numeric|min:0|max:5',
+        ]);
+
+        // Langkah 2: Catat data yang sudah lolos validasi
+        Log::info('Data setelah validasi:', $validated);
+
+        if (isset($validated['status']) && $validated['status'] !== 'FINISH' && isset($validated['rating'])) {
+            return response()->json(['error' => 'Rating only allowed for FINISH status'], 422);
+        }
+
+        $userId = $request->user->uid;
+        $bookId = $validated['book_id'];
+
+        $userLibrary = UserLibrary::updateOrCreate(
+            [
+                'user_id' => $userId,
+                'book_id' => $bookId,
+            ],
+            [
+                'status' => $validated['status'],
+                // Pastikan kita mengambil last_page_read dari data yang tervalidasi
+                'last_page_read' => $validated['last_page_read'] ?? null, 
+                'rating' => $validated['rating'] ?? null,
+                'updated_at' => now(),
+            ]
+        );
+
+        // Langkah 3: Catat hasil akhir setelah operasi database
+        Log::info('UserLibrary berhasil diupdate/dibuat:', $userLibrary->toArray());
+
+        return response()->json($userLibrary->load('book'), 200);
     }
-
-    $userId = $request->user->uid;
-    $bookId = $validated['book_id'];
-
-    $userLibrary = UserLibrary::updateOrCreate(
-        [
-            'user_id' => $userId,
-            'book_id' => $bookId,
-        ],
-        [
-            'status' => $validated['status'],
-            'last_page_read' => $validated['last_page_read'] ?? null,
-            'rating' => $validated['rating'] ?? null,
-            'updated_at' => now(),
-        ]
-    );
-
-    Log::info("UserLibrary updated/created: " . json_encode($userLibrary));
-    return response()->json($userLibrary->load('book'), 200);
-}
 }
 

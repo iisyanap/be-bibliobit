@@ -4,38 +4,33 @@ namespace App\Http\Controllers;
 
 use App\Models\ReadingProgress;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class ReadingProgressController extends Controller
 {
     /**
      * Menampilkan daftar data progres baca.
-     * Bisa difilter berdasarkan user_library_id jika parameter itu diberikan.
      */
     public function index(Request $request)
     {
         $user = $request->user;
         $userLibraryId = $request->query('user_library_id');
 
-        // Ambil semua ID library yang SAH milik pengguna yang sedang login
         $userLibraryIds = $user->userLibraries()->pluck('id');
 
-        // Mulai query dasar: ambil semua progress yang terkait dengan library milik user
         $query = ReadingProgress::whereIn('user_library_id', $userLibraryIds);
 
-        // Jika ada parameter user_library_id di URL, tambahkan filter
         if ($userLibraryId) {
-            // Filter lebih lanjut untuk hanya mengambil progres dari ID spesifik yang diminta
             $query->where('user_library_id', $userLibraryId);
         }
 
-        // Ambil data dan urutkan berdasarkan tanggal terbaru
         $progress = $query->orderBy('recorded_at', 'desc')->get();
 
         return response()->json($progress);
     }
 
     /**
-     * Menyimpan data progres baca baru.
+     * Menyimpan data progres baca baru dan mengupdate user_library.
      */
     public function store(Request $request)
     {
@@ -47,21 +42,40 @@ class ReadingProgressController extends Controller
             'recorded_at' => 'required|date',
         ]);
 
-        // Validasi keamanan: pastikan user_library_id ini benar-benar milik pengguna yang sedang login
+        // 1. Validasi keamanan: pastikan user_library_id ini benar-benar milik pengguna.
         $userLibrary = $user->userLibraries()->find($validated['user_library_id']);
 
         if (!$userLibrary) {
             return response()->json(['error' => 'Unauthorized or invalid library entry.'], 403);
         }
 
-        // Buat instance ReadingProgress dengan data yang divalidasi
-        $readingProgress = new ReadingProgress();
-        $readingProgress->user_library_id = $validated['user_library_id'];
-        $readingProgress->page_read = $validated['page_read'];
-        $readingProgress->recorded_at = $validated['recorded_at'];
-        $readingProgress->user_id = $userLibrary->user_id; // Pastikan user_id diisi dari userLibrary
-        $readingProgress->save();
+        // 2. Gunakan try-catch untuk memastikan semua operasi berhasil atau tidak sama sekali.
+        try {
+            // Buat entri ReadingProgress baru.
+            $readingProgress = ReadingProgress::create([
+                'user_library_id' => $validated['user_library_id'],
+                'page_read'       => $validated['page_read'],
+                'recorded_at'     => $validated['recorded_at'],
+                'user_id'         => $userLibrary->user_id,
+            ]);
 
-        return response()->json($readingProgress, 201);
+            // 3. Langsung update user_library dengan halaman terakhir yang dibaca.
+            $userLibrary->last_page_read = $validated['page_read'];
+            
+            // Opsional: Jika Anda ingin status berubah dari PLAN_TO_READ menjadi READING
+            if ($userLibrary->status === 'PLAN_TO_READ') {
+                $userLibrary->status = 'READING';
+            }
+            
+            $userLibrary->save();
+
+            // Berhasil, kembalikan data progres yang baru dibuat.
+            return response()->json($readingProgress, 201);
+
+        } catch (\Exception $e) {
+            // Jika terjadi error, catat di log dan kembalikan response error.
+            Log::error('Gagal menyimpan progres baca: ' . $e->getMessage());
+            return response()->json(['error' => 'Gagal menyimpan data. Silakan coba lagi.'], 500);
+        }
     }
 }
