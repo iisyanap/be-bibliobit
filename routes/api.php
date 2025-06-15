@@ -21,6 +21,7 @@ Route::middleware('firebase')->group(function () {
     Route::put('/books/{book}', [BookController::class, 'update']);
     Route::delete('/books/{book}', [BookController::class, 'destroy']);
     Route::post('/books/sync', [BookController::class, 'sync']);
+    Route::post('/books/find-or-create', [BookController::class, 'findOrCreate']);
 
     // Endpoint untuk User Library
     Route::get('/user-library', [UserLibraryController::class, 'index']); // Mendapatkan daftar user library

@@ -2,9 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Book;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 
 class GoogleBooksController extends Controller
 {
@@ -25,14 +26,66 @@ class GoogleBooksController extends Controller
         return $this->searchBooks('isbn:' . $isbn, true);
     }
 
-    // Untuk fitur Search Bar
     public function search(Request $request)
     {
         $query = $request->query('q');
-        if (!$query) {
-            return response()->json(['message' => 'Search query "q" is required.'], 400);
+
+        if ($query) {
+
+            $localIsbns = Book::whereNotNull('isbn')->pluck('isbn')->flip()->all();
+
+            $googleBooksResponse = $this->searchBooks($query);
+            $googleBooks = $googleBooksResponse->original;
+
+            $uniqueGoogleBooks = array_filter($googleBooks, function ($googleBook) use ($localIsbns) {
+                return isset($googleBook['isbn']) && !isset($localIsbns[$googleBook['isbn']]);
+            });
+
+            $localBooks = Book::where('title', 'like', "%{$query}%")
+                            ->orWhere('author', 'like', "%{$query}%")
+                            ->get();
+            $formattedLocalBooks = $this->formatLocalBooks($localBooks);
+
+            $combinedBooks = array_merge($formattedLocalBooks, array_values($uniqueGoogleBooks));
+
+        } else {
+            $googleBooksResponse = $this->searchBooks('bestsellers');
+            $googleBooks = $googleBooksResponse->original;
+
+            $manualBooks = Book::where(function ($q) {
+                $q->whereNull('cover_photo_path')
+                ->orWhere('cover_photo_path', 'NOT LIKE', '%books.google.com%');
+            })
+            ->latest()
+            ->take(20)
+            ->get();
+
+            $formattedManualBooks = $this->formatLocalBooks($manualBooks);
+
+            $combinedBooks = array_merge($formattedManualBooks, $googleBooks);
         }
-        return $this->searchBooks($query);
+
+        return response()->json($combinedBooks);
+}
+
+
+    private function formatLocalBooks($books)
+    {
+        return $books->map(function ($book) {
+            return [
+                'id' => $book->id, // Sertakan ID untuk navigasi di frontend
+                'title' => $book->title,
+                'author' => $book->author,
+                'publisher' => $book->publisher,
+                'year' => $book->year,
+                'pages' => $book->pages,
+                'description' => $book->description,
+                'isbn' => $book->isbn,
+                'cover_photo_path' => $book->coverPhotoPath,
+                'genre' => $book->genre,
+                'source' => 'local' // Tambahkan penanda sumber data
+            ];
+        })->all();
     }
 
     // Helper utama untuk berkomunikasi dengan Google API

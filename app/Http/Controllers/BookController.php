@@ -114,4 +114,39 @@ class BookController extends Controller
 
         return response()->json(['data' => $syncedBooks], 200);
     }
+
+    public function findOrCreate(Request $request)
+    {
+        $data = $request->validate([
+            'title' => 'required|string|max:255',
+            'author' => 'required|string|max:255',
+            'isbn' => 'nullable|string|max:20',
+            // Tambahkan validasi untuk field lain yang dikirim dari GoogleBook
+            'publisher' => 'nullable|string',
+            'year' => 'nullable|integer',
+            'pages' => 'required|integer',
+            'description' => 'nullable|string',
+            'cover_photo_path' => 'nullable|string',
+            'genre' => 'nullable|string',
+        ]);
+
+        $book = null;
+
+        if (!empty($data['isbn'])) {
+            $book = Book::where('isbn', $data['isbn'])->first();
+        }
+
+        if (!$book) {
+            $book = Book::where('title', $data['title'])
+                        ->where('author', $data['author'])
+                        ->first();
+        }
+
+        if (!$book) {
+            $book = Book::create($data);
+            return response()->json($book, 201);
+        }
+
+        return response()->json($book, 200);
+    }
 }
