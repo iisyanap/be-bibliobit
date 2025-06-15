@@ -10,53 +10,52 @@ use Carbon\Carbon;
 
 class StatisticController extends Controller
 {
-    
     public function index(Request $request)
     {
-        $request->validate([
-            'filter' => 'sometimes|in:day,week,month,year',
-        ]);
-
+        $request->validate(['filter' => 'sometimes|in:day,week,month,year']);
         $filter = $request->query('filter', 'week');
         $userId = $request->user->uid;
 
         $now = Carbon::now();
         $startDate = match ($filter) {
             'day'   => $now->copy()->startOfDay(),
-            'week'  => $now->copy()->startOfWeek(),
+            'week'  => $now->copy()->startOfWeek(Carbon::MONDAY),
             'month' => $now->copy()->startOfMonth(),
             'year'  => $now->copy()->startOfYear(),
         };
         $endDate = $now->copy()->endOfDay();
 
-        // menghitung halaman baca
-        $pagesReadQuery = ReadingProgress::where('user_id', $userId)
-            ->whereBetween('recorded_at', [$startDate, $endDate]);
+        // Untuk filter tahun, kita ambil 4 tahun terakhir
+        if ($filter === 'year') {
+            $startDate = $now->copy()->subYears(3)->startOfYear();
+        }
 
-        $totalPagesRead = $pagesReadQuery->sum('page_read');
-        $pagesReadData = $this->groupDataByInterval($pagesReadQuery->clone(), $filter, 'recorded_at', 'SUM(page_read)');
+        // Ambil data mentah dari database
+        $pagesReadRaw = $this->getRawData($userId, 'reading_progress', 'recorded_at', 'SUM(page_read)', $startDate, $endDate, $filter);
+        $booksFinishedRaw = $this->getRawData($userId, 'user_library', 'updated_at', 'COUNT(*)', $startDate, $endDate, $filter, 'FINISH');
 
-        // menghitung buku selesai
-        $booksFinishedQuery = UserLibrary::where('user_id', $userId)
-            ->where('status', 'FINISH')
-            ->whereBetween('updated_at', [$startDate, $endDate]);
+        // Proses data mentah menjadi data statistik yang lengkap
+        $pagesReadData = $this->generateCompleteData($filter, $pagesReadRaw);
+        $booksFinishedData = $this->generateCompleteData($filter, $booksFinishedRaw);
 
-        $totalBooksFinished = $booksFinishedQuery->count();
-        $booksFinishedData = $this->groupDataByInterval($booksFinishedQuery->clone(), $filter, 'updated_at', 'COUNT(*)');
+        // Hitung total dari data yang sudah difilter
+        $totalPagesRead = ReadingProgress::where('user_id', $userId)->whereBetween('recorded_at', [$startDate, $endDate])->sum('page_read');
+        $totalBooksFinished = UserLibrary::where('user_id', $userId)->where('status', 'FINISH')->whereBetween('updated_at', [$startDate, $endDate])->count();
 
-        // get progress reading
+        // --- DIPERBAIKI: Reading history sekarang juga difilter ---
         $readingHistory = ReadingProgress::with(['userLibrary.book'])
             ->where('user_id', $userId)
+            ->whereBetween('recorded_at', [$startDate, $endDate])
             ->orderBy('recorded_at', 'desc')
-            ->limit(20)
+            ->limit(50) // Batasi untuk performa
             ->get();
 
-        // get finish books
         $finishedBooks = UserLibrary::with('book')
             ->where('user_id', $userId)
             ->where('status', 'FINISH')
+            ->whereBetween('updated_at', [$startDate, $endDate])
             ->orderBy('updated_at', 'desc')
-            ->limit(20)
+            ->limit(50)
             ->get()->pluck('book');
 
         return response()->json([
@@ -69,17 +68,41 @@ class StatisticController extends Controller
         ]);
     }
 
-    private function groupDataByInterval($query, $filter, $dateColumn, $aggregateFunction)
-    {
-        $labelFormat = match ($filter) {
+    private function getRawData($userId, $table, $dateColumn, $aggregate, $startDate, $endDate, $filter, $status = null) {
+        $labelQuery = match ($filter) {
             'day'   => "EXTRACT(HOUR FROM {$dateColumn})",
-            'week'  => "TRIM(TO_CHAR({$dateColumn}, 'Day'))",
-            'month' => "EXTRACT(DAY FROM {$dateColumn})",
-            'year'  => "TRIM(TO_CHAR({$dateColumn}, 'Month'))",
+            'week'  => "EXTRACT(ISODOW FROM {$dateColumn})",
+            'month' => "EXTRACT(MONTH FROM {$dateColumn})",
+            'year'  => "EXTRACT(YEAR FROM {$dateColumn})",
         };
+        $query = DB::table($table)->select(DB::raw("{$aggregate} as value, {$labelQuery} as label"))->where('user_id', $userId)->whereBetween($dateColumn, [$startDate, $endDate])->groupBy('label');
+        if ($status) { $query->where('status', $status); }
+        return $query->pluck('value', 'label');
+    }
 
-        return $query->select(DB::raw("{$aggregateFunction} as value, {$labelFormat} as label"))
-                     ->groupBy('label')
-                     ->pluck('value', 'label');
+    private function generateCompleteData($filter, $rawData) {
+        $completeData = []; $now = Carbon::now();
+        switch ($filter) {
+            case 'day':
+                for ($hour = 0; $hour < 24; $hour++) { $completeData[sprintf('%02d:00', $hour)] = 0; }
+                foreach ($rawData as $hour => $value) { $completeData[sprintf('%02d:00', $hour)] = (int)$value; }
+                break;
+            case 'week':
+                $days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                $dayMap = array_fill_keys($days, 0);
+                foreach ($rawData as $dayOfWeek => $value) { if ($dayOfWeek >= 1 && $dayOfWeek <= 7) { $dayMap[$days[$dayOfWeek-1]] = (int)$value; } }
+                $completeData = $dayMap;
+                break;
+            case 'month':
+                // --- DIPERBAIKI: Menggunakan format 'M' untuk singkatan bulan ---
+                for ($month = 1; $month <= 12; $month++) { $completeData[Carbon::create()->month($month)->format('M')] = 0; }
+                foreach ($rawData as $month => $value) { $completeData[Carbon::create()->month($month)->format('M')] = (int)$value; }
+                break;
+            case 'year':
+                for ($i = 3; $i >= 0; $i--) { $completeData[$now->copy()->subYears($i)->year] = 0; }
+                foreach ($rawData as $year => $value) { if (isset($completeData[$year])) { $completeData[$year] = (int)$value; } }
+                ksort($completeData); break;
+        }
+        return $completeData;
     }
 }
