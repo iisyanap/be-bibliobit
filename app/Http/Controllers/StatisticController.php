@@ -17,6 +17,8 @@ class StatisticController extends Controller
         $userId = $request->user->uid;
 
         $now = Carbon::now();
+
+        // Tentukan rentang tanggal berdasarkan filter
         $startDate = match ($filter) {
             'day'   => $now->copy()->startOfDay(),
             'week'  => $now->copy()->startOfWeek(Carbon::MONDAY),
@@ -25,38 +27,46 @@ class StatisticController extends Controller
         };
         $endDate = $now->copy()->endOfDay();
 
-        // Untuk filter tahun, kita ambil 4 tahun terakhir
         if ($filter === 'year') {
             $startDate = $now->copy()->subYears(3)->startOfYear();
         }
 
-        // Ambil data mentah dari database
-        $pagesReadRaw = $this->getRawData($userId, 'reading_progress', 'recorded_at', 'SUM(page_read)', $startDate, $endDate, $filter);
-        $booksFinishedRaw = $this->getRawData($userId, 'user_library', 'updated_at', 'COUNT(*)', $startDate, $endDate, $filter, 'FINISH');
-
-        // Proses data mentah menjadi data statistik yang lengkap
-        $pagesReadData = $this->generateCompleteData($filter, $pagesReadRaw);
-        $booksFinishedData = $this->generateCompleteData($filter, $booksFinishedRaw);
-
-        // Hitung total dari data yang sudah difilter
-        $totalPagesRead = ReadingProgress::where('user_id', $userId)->whereBetween('recorded_at', [$startDate, $endDate])->sum('page_read');
-        $totalBooksFinished = UserLibrary::where('user_id', $userId)->where('status', 'FINISH')->whereBetween('updated_at', [$startDate, $endDate])->count();
-
-        // --- DIPERBAIKI: Reading history sekarang juga difilter ---
-        $readingHistory = ReadingProgress::with(['userLibrary.book'])
-            ->where('user_id', $userId)
-            ->whereBetween('recorded_at', [$startDate, $endDate])
-            ->orderBy('recorded_at', 'desc')
-            ->limit(50) // Batasi untuk performa
+        // --- PERBAIKAN UTAMA: Menghitung selisih progress ---
+        // 1. Ambil semua progress yang relevan untuk perhitungan delta
+        $allProgressForUser = ReadingProgress::where('user_id', $userId)
+            ->orderBy('user_library_id')
+            ->orderBy('recorded_at')
             ->get();
 
-        $finishedBooks = UserLibrary::with('book')
-            ->where('user_id', $userId)
-            ->where('status', 'FINISH')
-            ->whereBetween('updated_at', [$startDate, $endDate])
-            ->orderBy('updated_at', 'desc')
-            ->limit(50)
-            ->get()->pluck('book');
+        // 2. Hitung selisihnya di PHP
+        $progressEvents = $this->calculateProgressDeltas($allProgressForUser);
+
+        // 3. Filter event tersebut berdasarkan rentang tanggal
+        $filteredEvents = collect($progressEvents)->filter(function ($event) use ($startDate, $endDate) {
+            return Carbon::parse($event['recorded_at'])->between($startDate, $endDate);
+        });
+
+        // 4. Proses data yang sudah benar menjadi data statistik
+        $pagesReadRaw = $this->groupEventsByFilter($filteredEvents, $filter);
+        $pagesReadData = $this->generateCompleteData($filter, $pagesReadRaw);
+        $totalPagesRead = $filteredEvents->sum('pages_read');
+
+        // --- Logika untuk Buku Selesai (tetap sama dan sudah benar) ---
+        $booksFinishedRaw = $this->getBooksFinishedRaw($userId, $startDate, $endDate, $filter);
+        $booksFinishedData = $this->generateCompleteData($filter, $booksFinishedRaw);
+        $totalBooksFinished = UserLibrary::where('user_id', $userId)->where('status', 'FINISH')->whereBetween('updated_at', [$startDate, $endDate])->count();
+
+        $readingHistory = $filteredEvents->sortByDesc('recorded_at')->map(function($event) {
+            // Perlu cara untuk menyatukan data buku, untuk sementara kita kirim datanya
+            return [
+                'user_library_id' => $event['user_library_id'],
+                'page_read' => $event['pages_read'],
+                'recorded_at' => $event['recorded_at'],
+                'user_library' => UserLibrary::with('book')->find($event['user_library_id'])
+            ];
+        })->take(50)->values();
+
+        $finishedBooks = UserLibrary::with('book')->where('user_id', $userId)->where('status', 'FINISH')->whereBetween('updated_at', [$startDate, $endDate])->orderBy('updated_at', 'desc')->limit(50)->get()->pluck('book');
 
         return response()->json([
             'totalPagesRead' => (int) $totalPagesRead,
@@ -68,18 +78,59 @@ class StatisticController extends Controller
         ]);
     }
 
-    private function getRawData($userId, $table, $dateColumn, $aggregate, $startDate, $endDate, $filter, $status = null) {
-        $labelQuery = match ($filter) {
-            'day'   => "EXTRACT(HOUR FROM {$dateColumn})",
-            'week'  => "EXTRACT(ISODOW FROM {$dateColumn})",
-            'month' => "EXTRACT(MONTH FROM {$dateColumn})",
-            'year'  => "EXTRACT(YEAR FROM {$dateColumn})",
-        };
-        $query = DB::table($table)->select(DB::raw("{$aggregate} as value, {$labelQuery} as label"))->where('user_id', $userId)->whereBetween($dateColumn, [$startDate, $endDate])->groupBy('label');
-        if ($status) { $query->where('status', $status); }
-        return $query->pluck('value', 'label');
+    /**
+     * Fungsi helper baru untuk menghitung selisih progress.
+     */
+    private function calculateProgressDeltas($allProgress)
+    {
+        $events = [];
+        $lastPageByBook = [];
+
+        foreach ($allProgress as $progress) {
+            $bookId = $progress->user_library_id;
+            $previousPage = $lastPageByBook[$bookId] ?? 0;
+            $pagesThisSession = $progress->page_read - $previousPage;
+
+            if ($pagesThisSession > 0) {
+                $events[] = [
+                    'user_library_id' => $bookId,
+                    'pages_read' => $pagesThisSession,
+                    'recorded_at' => $progress->recorded_at,
+                ];
+            }
+            $lastPageByBook[$bookId] = $progress->page_read;
+        }
+        return $events;
     }
 
+    /**
+     * Fungsi helper baru untuk mengelompokkan data event.
+     */
+    private function groupEventsByFilter($events, $filter)
+    {
+        return $events->groupBy(function ($event) use ($filter) {
+            $date = Carbon::parse($event['recorded_at']);
+            return match ($filter) {
+                'day'   => $date->format('H'),
+                'week'  => $date->dayOfWeekIso,
+                'month' => $date->format('n'), // 1-12
+                'year'  => $date->year,
+            };
+        })->map(function ($group) {
+            return $group->sum('pages_read');
+        });
+    }
+
+    // Fungsi ini tidak berubah
+    private function getBooksFinishedRaw($userId, $startDate, $endDate, $filter) {
+        $labelQuery = match ($filter) {
+            'day'   => "EXTRACT(HOUR FROM updated_at)", 'week'  => "EXTRACT(ISODOW FROM updated_at)",
+            'month' => "EXTRACT(MONTH FROM updated_at)", 'year'  => "EXTRACT(YEAR FROM updated_at)",
+        };
+        return DB::table('user_library')->select(DB::raw("COUNT(*) as value, {$labelQuery} as label"))->where('user_id', $userId)->where('status', 'FINISH')->whereBetween('updated_at', [$startDate, $endDate])->groupBy('label')->pluck('value', 'label');
+    }
+
+    // Fungsi ini tidak berubah
     private function generateCompleteData($filter, $rawData) {
         $completeData = []; $now = Carbon::now();
         switch ($filter) {
@@ -94,7 +145,6 @@ class StatisticController extends Controller
                 $completeData = $dayMap;
                 break;
             case 'month':
-                // --- DIPERBAIKI: Menggunakan format 'M' untuk singkatan bulan ---
                 for ($month = 1; $month <= 12; $month++) { $completeData[Carbon::create()->month($month)->format('M')] = 0; }
                 foreach ($rawData as $month => $value) { $completeData[Carbon::create()->month($month)->format('M')] = (int)$value; }
                 break;
