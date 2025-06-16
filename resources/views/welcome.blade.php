@@ -44,7 +44,7 @@
                             <h1 class="display-1 lh-1 mb-3">Temukan Dunia Membaca Anda dengan Bibliobit</h1>
                             <p class="lead fw-normal text-muted mb-5">Catat Progres, Nikmati Perjalanan!</p>
                             <div class="d-flex flex-column flex-lg-row align-items-center">
-                                <a class="me-lg-3 mb-4 mb-lg-0" href="#!"><img class="app-badge" src="{{ asset('assets/img/google-play-badge.svg') }}" alt="..." /></a>
+                                <a class="me-lg-3 mb-4 mb-lg-0" href="https://drive.google.com/drive/folders/1x-hMan_4ZG9kqpPF0fDVNzqmdfCNtcMa?usp=sharing"><img class="app-badge" src="{{ asset('assets/img/google-play-badge.svg') }}" alt="..." /></a>
                             </div>
                         </div>
                     </div>
@@ -172,7 +172,7 @@
                     <h3 class="text-white display-4 lh-1 mb-4">
                         Lacak progres Anda, simpan catatan, dan jelajahi statistik membaca dengan Bibliobit. Unduh gratis dan wujudkan kebiasaan membaca terbaik Anda!
                     </h3>
-                    <a class="btn btn-outline-light py-3 px-4 rounded-pill" href="#!" target="_blank">Download for free</a>
+                    <a class="btn btn-outline-light py-3 px-4 rounded-pill" href="https://drive.google.com/drive/folders/1x-hMan_4ZG9kqpPF0fDVNzqmdfCNtcMa?usp=sharing" target="_blank">Download for free</a>
                 </div>
             </div>
         </section>
@@ -180,7 +180,7 @@
             <div class="container px-5">
                 <h2 class="text-center text-white font-alt mb-4">Get the app now!</h2>
                 <div class="d-flex flex-column flex-lg-row align-items-center justify-content-center">
-                    <a class="me-lg-3 mb-4 mb-lg-0" href="#!"><img class="app-badge" src="{{ asset('assets/img/google-play-badge.svg') }}" alt="..." /></a>
+                    <a class="me-lg-3 mb-4 mb-lg-0" href="https://drive.google.com/drive/folders/1x-hMan_4ZG9kqpPF0fDVNzqmdfCNtcMa?usp=sharing"><img class="app-badge" src="{{ asset('assets/img/google-play-badge.svg') }}" alt="..." /></a>
                 </div>
             </div>
         </section>
